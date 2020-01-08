@@ -63,6 +63,14 @@ class Parser {
     return this.adv(/^'/)
   }
 
+  tick() {
+    return this.adv(/^`/)
+  }
+
+  comma() {
+    return this.adv(/^,/)
+  }
+
   keyword() {
     if (this.adv(/^:/))
       return this.ident()
@@ -86,9 +94,19 @@ class Parser {
       return {type: 'str', v}
     else if (v = this.keyword())
       return {type: 'keyword', v}
-    else if (v = this.quote()) {
+    else if (v = this.tick()) {
       if (v = this.atom())
-        return {type: 'quoted', v}
+        return {type: 'quasi', v}
+      this.goBack(b)
+      return null
+    } else if (v = this.comma()) {
+      if (v = this.atom())
+        return {type: 'comma', v}
+      this.goBack(b)
+      return null
+    } else if (v = this.quote()) {
+      if (v = this.atom())
+        return {type: 'quote', v}
       this.goBack(b)
       return null
     } else if (v = this.lp()) {
@@ -126,8 +144,16 @@ function dump(node, depth = 0) {
       node.v.forEach(x => dump(x, depth + 1))
       console.log(i + ')')
       break
-    case 'quoted':
+    case 'quote':
       console.log(i + "'")
+      dump(node.v, depth + 1)
+      break
+    case 'quasi':
+      console.log(i + '`')
+      dump(node.v, depth + 1)
+      break
+    case 'comma':
+      console.log(i + ',')
       dump(node.v, depth + 1)
       break
     default:
@@ -149,6 +175,58 @@ function esc(name) {
 
   // Slow, should be optimized
   return Object.keys(replace_with).reduce((a, k) => a.split(k).join(replace_with[k]), name)
+}
+
+function quote(node, depth = 0, ret = false, q = quote) {
+  let i = '  '.repeat(depth)
+  let code = ''
+  let rs = ret ? 'return ' : ''
+  //console.log(node)
+  switch (node.type) {
+    case 'list':
+      code += i + rs + `[ ${node.v.map(a => q(a, 0, false)).join(', ')} ]`
+      break
+    case 'int':
+    case 'str':
+      code += i + rs + node.v
+      break
+    case 'ident':
+    case 'keyword':
+      code += i + rs + `"${node.v}"`
+      break
+    case 'quote':
+      code += q(node.v, depth, ret);
+      break
+  }
+  return code
+}
+
+function quasi(node, depth = 0, ret = false, q = quasi) {
+  let i = '  '.repeat(depth)
+  let code = ''
+  let rs = ret ? 'return ' : ''
+  console.log('<><><><> QUASI <><><><>')
+  dump(node, 2)
+  switch (node.type) {
+    case 'list':
+      code += i + rs + `[ ${node.v.map(a => q(a, 0, false)).join(', ')} ]`
+      break
+    case 'comma':
+      code += genjs(node.v, i, ret)
+      break
+    case 'int':
+    case 'str':
+      code += i + rs + node.v
+      break
+    case 'ident':
+    case 'keyword':
+      code += i + rs + `"${node.v}"`
+      break
+    case 'quote':
+      code += q(node.v, depth, ret);
+      break
+  }
+  return code
 }
 
 function genjs(node, depth = 0, ret = false) {
@@ -186,9 +264,22 @@ function genjs(node, depth = 0, ret = false) {
         if (name.type != 'ident')
           throw `defparameter parameter name should be an identifier, is ${name.type}`
         code += i + rs + `const ${esc(name.v)} = ${genjs(val, 0, false)}`
+      } else if (ieq('progn', node.v)) {
+        let [progn, ...rest] = node.v
+        code += rest.map((a, indx) => genjs(a, depth, ret && (indx == rest.length - 1))).join('\n')
+      } else if (ieq('if', node.v)) {
+        if (node.v.length != 4 && node.v.length != 3)
+          throw `if expects 2 or 3 arguments`
+        let [_if, cond, yes, no] = node.v
+        code += i + `if (${genjs(cond, 0, false)}) {\n${genjs(yes, depth + 1, ret)}\n`
+        code += i + '}'
+        if (no !== undefined) {
+          code += ` else {\n${genjs(no, depth + 1, ret)}\n`
+          code += i + '}'
+        }
       } else {
         let [name, ...args] = node.v
-        code += i + rs + `${esc(name.v)}(${args.map(a => genjs(a, 0, false)).join(', ')})`
+        code += i + rs + `${genjs(name, 0, false)}(${args.map(a => genjs(a, 0, false)).join(', ')})`
       }
       break
     case 'int':
@@ -197,8 +288,17 @@ function genjs(node, depth = 0, ret = false) {
     case 'str':
       code += i + rs + node.v
       break
+    case 'keyword':
+      code += i + rs + `"${node.v}"`
+      break
     case 'ident':
       code += i + rs + esc(node.v)
+      break
+    case 'quote':
+      code += quote(node.v, depth, ret)
+      break
+    case 'quasi':
+      code += quasi(node.v, depth, ret)
       break
   }
 
@@ -213,6 +313,7 @@ let f = process.argv[2]
 let code = fs.readFileSync(f, "utf-8")
 let p = new Parser(code)
 let ast = p.parse()
+ast.forEach(a => dump(a))
 ast.forEach(a => console.log(genjs(a)))
 console.log(p.cur())
 // (print (.parse (new Parser "avbc")))

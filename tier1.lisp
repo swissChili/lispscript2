@@ -1,16 +1,8 @@
-(defparameter *something* "Hello")
+(import (t0 "tier0")
+        (readline "readline"))
 
-(defmacro import (package)
-  `(defparameter ,package (require ,package)))
-
-(import fs)
-
-(defun -parse (input)
-  (if input
-    (progn
-      '(console.log "cringe")
-      (console.log input)
-      2)
-    3))
-
-(-parse (fs.readFileSync "tier1.lisp"))
+(defparameter some-fn
+  (lambda (bruh moment)
+    123
+    (+ 3 bruh)))
+#|asdf asdf  |#

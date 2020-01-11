@@ -1,2 +1,2 @@
-(defun display (...stuff)
+(defun print (...stuff)
   (console.log ...stuff))

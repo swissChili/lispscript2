@@ -39,8 +39,8 @@ class Parser {
     } else return null
   }
 
-  int() {
-    return this.adv(/^\d+/, Number)
+  num() {
+    return this.adv(/^\d+(\.\d+)?/, Number)
   }
 
   ident() {
@@ -92,8 +92,8 @@ class Parser {
     this.cmt()
     if (v = this.ident())
       return {type: 'ident', v}
-    else if (v = this.int())
-      return {type: 'int', v}
+    else if (v = this.num())
+      return {type: 'num', v}
     else if (v = this.str())
       return {type: 'str', v}
     else if (v = this.keyword())
@@ -190,7 +190,7 @@ function quote(node, depth = 0, ret = false, q = quote) {
     case 'list':
       code += i + rs + `[ ${node.v.map(a => q(a, 0, false)).join(', ')} ]`
       break
-    case 'int':
+    case 'num':
     case 'str':
       code += i + rs + node.v
       break
@@ -218,7 +218,7 @@ function quasi(node, depth = 0, ret = false, q = quasi) {
     case 'comma':
       code += genjs(node.v, i, ret)
       break
-    case 'int':
+    case 'num':
     case 'str':
       code += i + rs + node.v
       break
@@ -277,6 +277,13 @@ function genjs(node, depth = 0, ret = false, mctx = {}) {
         let [defparam, name, val] = node.v;
         if (name.type != 'ident')
           throw `defparameter parameter name should be an identifier, is ${name.type}`
+        code += i + rs + `var ${esc(name.v)} = ${genjs(val, 0, false)}`
+      } else if (ieq('defconstant', node.v)) {
+        if (node.v.length != 3)
+          throw `defconstant expects exactly 2 arguments`
+        let [defconst, name, val] = node.v;
+        if (name.type != 'ident')
+          throw `defconstant parameter name should be an identifier, is ${name.type}`
         code += i + rs + `const ${esc(name.v)} = ${genjs(val, 0, false)}`
       } else if (ieq('progn', node.v)) {
         let [progn, ...rest] = node.v
@@ -329,7 +336,7 @@ function genjs(node, depth = 0, ret = false, mctx = {}) {
         code += i + rs + `${genjs(name, 0, false)}(${args.map(a => genjs(a, 0, false)).join(', ')})`
       }
       break
-    case 'int':
+    case 'num':
       code += i + rs + String(node.v)
       break
     case 'str':
@@ -363,4 +370,4 @@ let ast = p.parse()
 //ast.forEach(a => dump(a))
 ast.forEach(a => console.log(genjs(a)))
 console.log(p.cur())
-// (print (.parse (new Parser "avbc")))
+// (prnum (.parse (new Parser "avbc")))

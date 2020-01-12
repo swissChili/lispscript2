@@ -233,13 +233,44 @@ function quasi(node, depth = 0, ret = false, q = quasi) {
   return code
 }
 
-function genjs(node, depth = 0, ret = false, ctx = {}) {
+function genjs(node, depth = 0, ret = false, ctx = {}, jsmctx = {}) {
   // console.log(ret)
   let i = '  '.repeat(depth)
   let code = ''
   let rs = ret ? 'return ' : ''
   switch (node.type) {
     case 'list':
+      let ismacro = false
+      for (let m of Object.keys(jsmctx)) {
+        //console.log(m)
+        if (ieq(m, node.v)) {
+          let macro = jsmctx[m]
+          let rx = rs
+          let [_m, ...args] = node.v
+          for (let chunk of macro) {
+            if (rx)
+              code += i + rs
+            switch (chunk.type) {
+              case 'lit':
+                code += chunk.v.slice(1, chunk.v.length - 1)
+                break
+              case 'arg':
+                if (chunk.v >= args.length)
+                  throw `argument out of range (this should never be thrown)`
+                let arg = args[chunk.v]
+                code += genjs(arg, 0, false, ctx, jsmctx)
+                break
+              default:
+                throw `only lit and arg allowed in js macro, this should never be thrown`
+            }
+            rx = false
+          }
+          ismacro = true
+        }
+      }
+
+      if (ismacro) break
+
       if (ieq('defun', node.v)) {
         // 'defun' func-name args body
         if (node.v.length < 4) {
@@ -264,6 +295,35 @@ function genjs(node, depth = 0, ret = false, ctx = {}) {
 
         code += i + rs + `function (${args.v.map(a => a.v).join(', ')}) {\n`
         code += body.map((a, i) => genjs(a, depth + 1, i == body.length-1)).join('\n') + i + '\n}'
+      } else if (ieq('defjsmacro', node.v)) {
+        if (node.v.length < 3)
+          throw `defjsmacro expects at least two arguments`
+        let [defjsmacro, named, args, ...body] = node.v
+
+        if (named.type != 'ident')
+          throw `js macro name must be an ident, is ${named.type}`
+        if (args.type != 'list' || !args.v.reduce((a, c) => a && c.type =='ident', true))
+          throw `function args (second argument to lambda) should be a list, is ${args.type}`
+
+        let macro = []
+        for (let b of body) {
+          switch (b.type) {
+            case 'str':
+              macro.push({type: 'lit', v: b.v})
+              break
+            case 'ident':
+              let n = b.v
+              let idx = args.v.map(a => a.v).indexOf(n)
+              if (idx === -1)
+                throw `ident in js macro must exist in the argument list, ${n} does not`
+              macro.push({type: 'arg', v: idx})
+              break
+            default:
+              throw `js macro body may only contain strings and identifiers, not ${b.type}`
+          }
+          // console.log(macro)
+          jsmctx[named.v] = macro
+        }
       } else if (ieq('+', node.v) || ieq('/', node.v) || ieq('-', node.v) || ieq('*', node.v)) {
         // Infix operator in JS
         if (node.v.length < 3)
@@ -364,7 +424,6 @@ function genjs(node, depth = 0, ret = false, ctx = {}) {
       code += quasi(node.v, depth, ret)
       break
   }
-
   return code
 }
 
@@ -374,10 +433,16 @@ if (process.argv.length < 3)
 let f = process.argv[2]
 
 let code = fs.readFileSync(f, "utf-8")
+let macros = fs.readFileSync("macros.lisp", "utf-8")
 let p = new Parser(code)
+let mp = new Parser(macros)
 let ast = p.parse()
+let mast = mp.parse()
 // Context used by defparameter/defvar etc
 let ctx = {}
-ast.forEach(a => console.log(genjs(a, 0, false, ctx)))
-console.log(p.cur())
+let jsmctx = {}
+let js = ""
+mast.forEach(a => js += genjs(a, 0, false, ctx, jsmctx))
+ast.forEach(a => js += genjs(a, 0, false, ctx, jsmctx) + '\n')
+console.log(js)
 // (prnum (.parse (new Parser "avbc")))

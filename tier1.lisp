@@ -1,3 +1,8 @@
+(defjsmacro hello (name)
+  "console.log('hello', " name ")")
+
+(hello "world")
+
 #| import: import a JavaScript or Lisp module
  |#
 (import (t0 "tier0")
@@ -18,7 +23,7 @@
 #| defun: define a function
  |#
 (defun greet (name)
-  (print "Hello" name))
+  (print (+ "Hello, " name)))
 
 #| lambda: define an anonymous function that can be bound to a
  |         variable or returned from a function
@@ -26,3 +31,11 @@
 (defvar add-two
   (lambda (a b)
     (+ a b)))
+
+#| quote: turns a list into data
+ |#
+(defvar letters
+  '(a b c d))
+
+(car letters)
+(cdr letters)

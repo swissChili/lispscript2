@@ -7,6 +7,9 @@
 (defjsmacro cdr (list)
   list ".slice(1)")
 
+(defjsmacro cons (a b)
+  b ".unshift(" a ")")
+
 (defjsmacro map (list lambda)
   list ".map(" lambda ")")
 

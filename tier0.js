@@ -44,7 +44,7 @@ class Parser {
   }
 
   ident() {
-    return this.adv(/^[\.a-zA-Z\-+\/*_!][^\s^\n^\r^\(^\)^\"^:^']*/)
+    return this.adv(/^[\.a-zA-Z\-+\/*_=<>!][^\s^\n^\r^\(^\)^\"^:^']*/)
   }
 
   lp() {
@@ -271,6 +271,8 @@ function genjs(node, depth = 0, ret = false, ctx = {}, jsmctx = {}) {
 
       if (ismacro) break
 
+      let infixOps = ['+', '-', '*', '/', '<', '>', '>=', '<=', '==', '!=']
+
       if (ieq('defun', node.v)) {
         // 'defun' func-name args body
         if (node.v.length < 4) {
@@ -324,7 +326,7 @@ function genjs(node, depth = 0, ret = false, ctx = {}, jsmctx = {}) {
           // console.log(macro)
           jsmctx[named.v] = macro
         }
-      } else if (ieq('+', node.v) || ieq('/', node.v) || ieq('-', node.v) || ieq('*', node.v)) {
+      } else if (infixOps.reduce((a, c) => a || ieq(c, node.v), false)) {
         // Infix operator in JS
         if (node.v.length < 3)
           throw `${node.v[0].v} expects at least 2 arguments`

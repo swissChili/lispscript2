@@ -8,17 +8,22 @@
 This is a rewrite of the original lispscript (written in haskell) in JS
 and Lisp.
 
-## Building
+## Example
 
-Use the makefile in this repository to bootstrap the compiler.
+```lisp
+;; Calculate the nth fibonacci number
+(defun fib (n)
+  (if (<= n 2)
+    1
+    (+ (fib (- n 1))
+       (fib (- n 2)))))
 
-## Progress
-
-So far tier0 is implemented almost completely in JS, and tier1 (lisp bootstrap)
-is in progress.
+(print (fib 12))
+; 144
+```
 
 ## Roadmap
 
-- Implement macros
-  - This will allow much of the language to be bootstrapped
-- Implement lambdas
+- Implement more powerful macros
+  - right now only js macros exist, which are handy for bootstrapping but
+    lack the real power of lisp macros.

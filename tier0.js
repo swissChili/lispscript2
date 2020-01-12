@@ -233,8 +233,7 @@ function quasi(node, depth = 0, ret = false, q = quasi) {
   return code
 }
 
-// mctx = macro context object, name : 
-function genjs(node, depth = 0, ret = false, mctx = {}) {
+function genjs(node, depth = 0, ret = false, ctx = {}) {
   // console.log(ret)
   let i = '  '.repeat(depth)
   let code = ''
@@ -277,7 +276,16 @@ function genjs(node, depth = 0, ret = false, mctx = {}) {
         let [defparam, name, val] = node.v;
         if (name.type != 'ident')
           throw `defparameter parameter name should be an identifier, is ${name.type}`
-        code += i + rs + `var ${esc(name.v)} = ${genjs(val, 0, false)}`
+        code += i + rs + (ctx[name.v] === undefined ? 'var ' : '') +`${esc(name.v)} = ${genjs(val, 0, false)}`
+        ctx[name.v] = 'defparameter'
+      } else if (ieq('defvar', node.v)) {
+        if (node.v.length != 3)
+          throw `defvar expects exactly 2 arguments`
+        let [defparam, name, val] = node.v;
+        if (name.type != 'ident')
+          throw `defvar parameter name should be an identifier, is ${name.type}`
+        code += (ctx[name.v] === undefined ? i + rs + `var ${esc(name.v)} = ${genjs(val, 0, false)}` : '')
+        ctx[name.v] = 'defvar'
       } else if (ieq('defconstant', node.v)) {
         if (node.v.length != 3)
           throw `defconstant expects exactly 2 arguments`
@@ -285,13 +293,14 @@ function genjs(node, depth = 0, ret = false, mctx = {}) {
         if (name.type != 'ident')
           throw `defconstant parameter name should be an identifier, is ${name.type}`
         code += i + rs + `const ${esc(name.v)} = ${genjs(val, 0, false)}`
+        ctx[name.v] = 'defconstant'
       } else if (ieq('progn', node.v)) {
         let [progn, ...rest] = node.v
         code += rest.map((a, indx) => genjs(a, depth, ret && (indx == rest.length - 1))).join('\n')
-      } else if (ieq('set!', node.v)) {
+      } else if (ieq('setf', node.v)) {
         let [set, k, v] = node.v;
         if (node.v.length != 3)
-          throw `set! expects exactly 2 arguments`
+          throw `setf expects exactly 2 arguments`
         code += i + rs + genjs(k, 0, false) + ' = ' + genjs(v, 0, false)
       } else if (ieq('import', node.v)) {
         let [_import, ...items] = node.v
@@ -367,7 +376,8 @@ let f = process.argv[2]
 let code = fs.readFileSync(f, "utf-8")
 let p = new Parser(code)
 let ast = p.parse()
-//ast.forEach(a => dump(a))
-ast.forEach(a => console.log(genjs(a)))
+// Context used by defparameter/defvar etc
+let ctx = {}
+ast.forEach(a => console.log(genjs(a, 0, false, ctx)))
 console.log(p.cur())
 // (prnum (.parse (new Parser "avbc")))
